@@ -13,15 +13,25 @@
     </div>
     <script>
       const { reactive, effect } = Vue
+      //[ ]:问题一：reactive不能代理简单数据类型
       const obj = reactive({
         name: '章三'
       })
+      //[ ]:问题二：obj.name结构之后就失去了响应性
+      const { name } = obj
+      //MARK：这个是一个obj.name对应多个activeEffect，如何解决呢？
       effect(() => {
         document.getElementById('p1').innerHTML = obj.name
       })
+      effect(() => {
+        document.getElementById('p2').innerHTML = name
+      })
+
       setTimeout(() => {
         obj.name = '王五'
+        name = '王五'
       }, 2000)
+      console.log(obj)
       obj.name = '李四'
       console.log(obj.name)
     </script>
