@@ -72,9 +72,18 @@ export function trigger(target: object, key: unknown) {
  */
 export function triggerEffects(dep: Dep) {
   const effects = Array.isArray(dep) ? dep : Array.from(dep)
+  //可以解决死循环
   //依次触发依赖
   for (const effect of effects) {
-    triggerEffect(effect)
+    if (effect.computed) {
+      triggerEffect(effect)
+    }
+  }
+  // 如果依赖中没有computed，则依次触发依赖
+  for (const effect of effects) {
+    if (!effect.computed) {
+      triggerEffect(effect)
+    }
   }
 }
 export function triggerEffect(effect: ReactiveEffect) {
