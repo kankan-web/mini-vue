@@ -6,13 +6,17 @@ const targetMap = new WeakMap<object, KeyToDepMap>()
 
 export type EffectScheduler = (...args: any[]) => any
 
+//effect函数
 export function effect<T = any>(
   fn: () => T,
   scheduler: EffectScheduler | null = null
 ) {
+  // 创建一个ReactiveEffect实例
   const _effect = new ReactiveEffect(fn, scheduler)
+  // 立即执行fn
   _effect.run()
 }
+
 //用于存储当前的实例
 export let activeEffect: ReactiveEffect | undefined
 

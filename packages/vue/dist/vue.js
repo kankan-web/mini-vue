@@ -1,12 +1,18 @@
 var Vue = (function (exports) {
     'use strict';
 
+    var isArray = Array.isArray;
     var isObject = function (val) {
         return val !== null && typeof val === 'object';
     };
+    var isString = function (val) { return typeof val === 'string'; };
     //判断值是否发生变化
     var hasChanged = function (value, newValue) {
         return !Object.is(value, newValue);
+    };
+    //判断是否为函数
+    var isFunction = function (val) {
+        return typeof val === 'function';
     };
 
     /******************************************************************************
@@ -42,15 +48,21 @@ var Vue = (function (exports) {
     };
 
     var targetMap = new WeakMap();
-    function effect(fn) {
-        var _effect = new ReactiveEffect(fn);
+    //effect函数
+    function effect(fn, scheduler) {
+        if (scheduler === void 0) { scheduler = null; }
+        // 创建一个ReactiveEffect实例
+        var _effect = new ReactiveEffect(fn, scheduler);
+        // 立即执行fn
         _effect.run();
     }
     //用于存储当前的实例
     var activeEffect;
     var ReactiveEffect = /** @class */ (function () {
-        function ReactiveEffect(fn) {
+        function ReactiveEffect(fn, scheduler) {
+            if (scheduler === void 0) { scheduler = null; }
             this.fn = fn;
+            this.scheduler = scheduler;
         }
         ReactiveEffect.prototype.run = function () {
             activeEffect = this;
@@ -106,13 +118,16 @@ var Vue = (function (exports) {
      * 依次触发dep中保存的依赖
      */
     function triggerEffects(dep) {
-        var e_1, _a;
+        var e_1, _a, e_2, _b;
         var effects = Array.isArray(dep) ? dep : Array.from(dep);
         try {
+            //可以解决死循环
             //依次触发依赖
             for (var effects_1 = __values(effects), effects_1_1 = effects_1.next(); !effects_1_1.done; effects_1_1 = effects_1.next()) {
                 var effect_1 = effects_1_1.value;
-                triggerEffect(effect_1);
+                if (effect_1.computed) {
+                    triggerEffect(effect_1);
+                }
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -122,9 +137,30 @@ var Vue = (function (exports) {
             }
             finally { if (e_1) throw e_1.error; }
         }
+        try {
+            // 如果依赖中没有computed，则依次触发依赖
+            for (var effects_2 = __values(effects), effects_2_1 = effects_2.next(); !effects_2_1.done; effects_2_1 = effects_2.next()) {
+                var effect_2 = effects_2_1.value;
+                if (!effect_2.computed) {
+                    triggerEffect(effect_2);
+                }
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (effects_2_1 && !effects_2_1.done && (_b = effects_2.return)) _b.call(effects_2);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
     }
     function triggerEffect(effect) {
-        effect.run();
+        if (effect.scheduler) {
+            effect.scheduler();
+        }
+        else {
+            effect.run();
+        }
     }
 
     var get = createGetter();
@@ -149,16 +185,20 @@ var Vue = (function (exports) {
         set: set
     };
 
+    // 缓存代理对象
     var reactiveMap = new WeakMap();
     function reactive(target) {
         return createReactiveObject(target, mutableHandlers, reactiveMap);
     }
     function createReactiveObject(target, baseHandlers, proxyMap) {
+        // 如果 target 已经是代理对象，则直接返回
         var existingProxy = proxyMap.get(target);
         if (existingProxy) {
             return existingProxy;
         }
+        // 创建代理对象
         var proxy = new Proxy(target, baseHandlers);
+        // 缓存代理对象
         proxyMap.set(target, proxy);
         return proxy;
     }
@@ -217,7 +257,110 @@ var Vue = (function (exports) {
         return !!(r && r.__v_isRef === true);
     }
 
+    var ComputedRefImpl = /** @class */ (function () {
+        function ComputedRefImpl(getter) {
+            var _this = this;
+            this.dep = undefined;
+            this._dirty = true;
+            this.__v_isRef = true;
+            this.effect = new ReactiveEffect(getter, function () {
+                if (!_this._dirty) {
+                    _this._dirty = true;
+                    triggerRefValue(_this);
+                }
+            });
+            this.effect.computed = this;
+        }
+        Object.defineProperty(ComputedRefImpl.prototype, "value", {
+            get: function () {
+                trackRefValue(this);
+                if (this._dirty) {
+                    this._dirty = false;
+                    this._value = this.effect.run();
+                }
+                return this._value;
+            },
+            enumerable: false,
+            configurable: true
+        });
+        return ComputedRefImpl;
+    }());
+    function computed(getterOrOptions) {
+        var getter;
+        var isOnlyGetter = isFunction(getterOrOptions);
+        if (isOnlyGetter) {
+            getter = getterOrOptions;
+        }
+        var cRef = new ComputedRefImpl(getter);
+        return cRef;
+    }
+
+    function isVNode(value) {
+        return value && value.__v_isVNode === true;
+    }
+    function createVNode(type, props, children) {
+        var shapeFlag = isString(type) ? 1 /* ShapeFlags.ELEMENT */ : 0;
+        return createBaseVNode(type, props, children, shapeFlag);
+    }
+    function createBaseVNode(type, props, children, shapeFlag) {
+        var vnode = {
+            __v_isVNode: true,
+            type: type,
+            props: props,
+            children: children,
+            shapeFlag: shapeFlag
+        };
+        normalizeChildren(vnode, children);
+        return vnode;
+    }
+    function normalizeChildren(vnode, children) {
+        var type = 0;
+        vnode.shapeFlag;
+        if (children === null) {
+            children = null;
+        }
+        else if (isArray(children)) {
+            type = 16 /* ShapeFlags.ARRAY_CHILDREN */;
+        }
+        else if (typeof children === 'object') ;
+        else if (isFunction(children)) ;
+        else {
+            children = String(children);
+            type = 8 /* ShapeFlags.TEXT_CHILDREN */;
+        }
+        vnode.children = children;
+        //MARK: 为什么需要用或运算符?
+        vnode.shapeFlag |= type;
+    }
+
+    function h(type, propsOrChildren, children) {
+        var l = arguments.length;
+        if (l === 2) {
+            //propsOrChildren 是对象，不是数组
+            if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
+                if (isVNode(propsOrChildren)) {
+                    return createVNode(type, null, [propsOrChildren]);
+                }
+                return createVNode(type, propsOrChildren, []);
+            }
+            else {
+                return createVNode(type, null, propsOrChildren);
+            }
+        }
+        else {
+            if (l > 3) {
+                children = Array.prototype.slice.call(arguments, 2);
+            }
+            else if (l === 3 && isVNode(children)) {
+                children = [children];
+            }
+            return createVNode(type, propsOrChildren, children);
+        }
+    }
+
+    exports.computed = computed;
     exports.effect = effect;
+    exports.h = h;
     exports.reactive = reactive;
     exports.ref = ref;
 
