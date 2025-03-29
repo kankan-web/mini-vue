@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="../../dist/vue.js"></script>
+    <script>
+      const { h, render } = Vue
+      const component = {
+        render() {
+          const vnode1 = h('div', 'hello')
+          console.log(vnode1) //后执行
+          return vnode1
+        }
+      }
+      const vnode2 = h(component)
+      console.log(vnode2) //先执行
+      render(vnode2, document.getElementById('app'))
+
+      //手动设置vnode
+      // const component = {
+      //   render() {
+      //     return {
+      //       __v_isVNode: true,
+      //       type: 'div',
+      //       children: '这是一个component',
+      //       shapeFlag: 9
+      //     }
+      //   }
+      // }
+      // const vnode2 = {
+      //   __v_isVNode: true,
+      //   shapeFlag: 4,
+      //   type: component
+      // }
+      // render(vnode2, document.getElementById('app'))
+    </script>
+  </body>
+</html>

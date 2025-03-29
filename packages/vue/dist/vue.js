@@ -295,11 +295,49 @@ var Vue = (function (exports) {
         return cRef;
     }
 
+    function normalizeClass(value) {
+        var res = '';
+        if (isString(value)) {
+            res = value;
+        }
+        else if (isArray(value)) {
+            for (var i = 0; i < value.length; i++) {
+                var normalized = normalizeClass(value[i]);
+                if (normalized) {
+                    res += normalized + ' ';
+                }
+            }
+        }
+        else if (isObject(value)) {
+            for (var name_1 in value) {
+                if (value[name_1]) {
+                    res += name_1 + ' ';
+                }
+            }
+        }
+        return res.trim();
+    }
+
+    var Fragment = Symbol('Fragment');
+    var Text = Symbol('Text');
+    var Comment = Symbol('Comment');
     function isVNode(value) {
         return value && value.__v_isVNode === true;
     }
     function createVNode(type, props, children) {
-        var shapeFlag = isString(type) ? 1 /* ShapeFlags.ELEMENT */ : 0;
+        //进行props中class与style增强处理
+        if (props) {
+            var klass = props.class; props.style;
+            if (klass && !isString(klass)) {
+                props.class = normalizeClass(klass);
+            }
+        }
+        //这里
+        var shapeFlag = isString(type)
+            ? 1 /* ShapeFlags.ELEMENT */
+            : isObject(type)
+                ? 4 /* ShapeFlags.STATEFUL_COMPONENT */
+                : 0;
         return createBaseVNode(type, props, children, shapeFlag);
     }
     function createBaseVNode(type, props, children, shapeFlag) {
@@ -310,34 +348,49 @@ var Vue = (function (exports) {
             children: children,
             shapeFlag: shapeFlag
         };
+        //TEXT: 处理 children
         normalizeChildren(vnode, children);
         return vnode;
     }
     function normalizeChildren(vnode, children) {
         var type = 0;
         vnode.shapeFlag;
-        if (children === null) {
+        if (children == null) {
             children = null;
         }
         else if (isArray(children)) {
+            //children 是数组
             type = 16 /* ShapeFlags.ARRAY_CHILDREN */;
         }
         else if (typeof children === 'object') ;
         else if (isFunction(children)) ;
         else {
+            //children 是字符串
             children = String(children);
             type = 8 /* ShapeFlags.TEXT_CHILDREN */;
         }
         vnode.children = children;
         //MARK: 为什么需要用或运算符?
+        //shapeFlag非常重要，它决定了虚拟节点的类型和子节点类型
         vnode.shapeFlag |= type;
     }
 
+    /**
+     * 创建虚拟节点
+     * @param type
+     * @param propsOrChildren
+     * @param children
+     * @returns
+     * @example
+     *
+     *
+     */
     function h(type, propsOrChildren, children) {
         var l = arguments.length;
         if (l === 2) {
             //propsOrChildren 是对象，不是数组
             if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
+                //propsOrChildren 是虚拟节点
                 if (isVNode(propsOrChildren)) {
                     return createVNode(type, null, [propsOrChildren]);
                 }
@@ -358,6 +411,9 @@ var Vue = (function (exports) {
         }
     }
 
+    exports.Comment = Comment;
+    exports.Fragment = Fragment;
+    exports.Text = Text;
     exports.computed = computed;
     exports.effect = effect;
     exports.h = h;

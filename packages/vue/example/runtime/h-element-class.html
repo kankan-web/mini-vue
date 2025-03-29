@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="../../dist/vue.js"></script>
+    <script>
+      const { h, render } = Vue
+      //<div class="red">hello</div>
+      const vnode = h(
+        'div',
+        {
+          class: {
+            red: true
+          }
+        },
+        'hello'
+      )
+      console.log(vnode)
+      const vnode2 = h(
+        'div',
+        {
+          class: [
+            {
+              red: true
+            },
+            'box'
+          ]
+        },
+        'hello'
+      )
+      console.log(vnode2)
+    </script>
+  </body>
+</html>
