@@ -1,5 +1,5 @@
 export const isArray = Array.isArray
-
+export const extend = Object.assign
 export const isObject = (val: unknown) => {
   return val !== null && typeof val === 'object'
 }
@@ -12,3 +12,6 @@ export const hasChanged = (value: any, newValue: any): boolean => {
 //判断是否为函数
 export const isFunction = (val: unknown): val is Function =>
   typeof val === 'function'
+
+const onRE = /^on[^a-z]/
+export const isOn = (key: string) => onRE.test(key)
