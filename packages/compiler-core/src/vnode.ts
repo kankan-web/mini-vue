@@ -12,6 +12,7 @@ export interface VNode {
   props: any
   children: any
   shapeFlag: number
+  key: string
 }
 export function isVNode(value: any): value is VNode {
   return value && value.__v_isVNode === true

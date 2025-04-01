@@ -17,6 +17,8 @@ var Vue = (function (exports) {
     };
     var onRE = /^on[^a-z]/;
     var isOn = function (key) { return onRE.test(key); };
+    //NOTE:这个是什么？
+    var EMPTY_OBJ = Object.freeze({});
 
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
@@ -471,17 +473,31 @@ var Vue = (function (exports) {
         },
         setElementText: function (el, text) {
             el.textContent = text;
+        },
+        remove: function (child) {
+            var parent = child.parentNode;
+            if (parent) {
+                parent.removeChild(child);
+            }
         }
     };
+
+    function isSameVNodeType(n1, n2) {
+        return n1.type === n2.type && n1.key === n2.key;
+    }
 
     function createRenderer(options) {
         return baseCreateRenderer(options);
     }
     function baseCreateRenderer(options) {
-        var hostPatchProp = options.patchProp, hostSetElementText = options.setElementText, hostInsert = options.insert, hostCreateElement = options.createElement;
+        var hostPatchProp = options.patchProp, hostSetElementText = options.setElementText, hostInsert = options.insert, hostCreateElement = options.createElement, hostRemove = options.remove;
         var processElement = function (oldVNode, newVNode, container, anchor) {
             if (oldVNode == null) {
                 mountElement(newVNode, container, anchor); //挂载操作
+            }
+            else {
+                //更新操作
+                patchElement(oldVNode, newVNode);
             }
         };
         //挂载操作：
@@ -502,10 +518,67 @@ var Vue = (function (exports) {
             //4.插入
             hostInsert(el, container, anchor);
         };
+        //更新操作
+        var patchElement = function (oldVNode, newVNode) {
+            var el = (newVNode.el = oldVNode.el);
+            var oldProps = oldVNode.props || EMPTY_OBJ;
+            var newProps = newVNode.props || EMPTY_OBJ;
+            patchChildren(oldVNode, newVNode, el);
+            patchProps(el, newVNode, oldProps, newProps);
+        };
+        var patchChildren = function (oldVNode, newVNode, container) {
+            var c1 = oldVNode && oldVNode.children;
+            var prevShapeFlag = oldVNode ? oldVNode.shapeFlag : 0;
+            var c2 = newVNode && newVNode.children;
+            var shapeFlag = newVNode.shapeFlag;
+            //新节点的类型为text
+            if (shapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
+                if (c2 !== c1) {
+                    //挂载新节点的文本
+                    hostSetElementText(container, c2);
+                }
+            }
+            else {
+                //新节点的类型不为text
+                //旧节点的类型也为Array children
+                if (prevShapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) ;
+                else {
+                    //旧节点
+                    if (prevShapeFlag & 8 /* ShapeFlags.TEXT_CHILDREN */) {
+                        hostSetElementText(container, '');
+                    }
+                }
+            }
+        };
+        var patchProps = function (el, vnode, oldProps, newProps) {
+            //这里是以新值的props为主，但是不同内容的props做个替换
+            //比如：都是class类型，但是旧值是：test，新值是：active
+            if (oldProps !== newProps) {
+                for (var key in newProps) {
+                    var next = newProps[key];
+                    var prev = oldProps[key];
+                    if (next !== prev) {
+                        hostPatchProp(el, key, prev, next);
+                    }
+                }
+            }
+            //若旧值中存在，但是新值中未存在的，可以将旧值移除
+            if (oldProps !== EMPTY_OBJ) {
+                for (var key in oldProps) {
+                    if (!(key in newProps)) {
+                        hostPatchProp(el, key, oldProps[key], null);
+                    }
+                }
+            }
+        };
         var patch = function (oldVNode, newVNode, container, anchor) {
             if (anchor === void 0) { anchor = null; }
             if (oldVNode == newVNode) {
                 return;
+            }
+            if (oldVNode && !isSameVNodeType(oldVNode, newVNode)) {
+                unmount(oldVNode);
+                oldVNode = null;
             }
             var type = newVNode.type, shapeFlag = newVNode.shapeFlag;
             switch (type) {
@@ -520,6 +593,9 @@ var Vue = (function (exports) {
                         processElement(oldVNode, newVNode, container, anchor);
                     }
             }
+        };
+        var unmount = function (vnode) {
+            hostRemove(vnode.el);
         };
         var render = function (vnode, container) {
             if (vnode === null) ;

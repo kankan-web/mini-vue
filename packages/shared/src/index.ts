@@ -15,3 +15,6 @@ export const isFunction = (val: unknown): val is Function =>
 
 const onRE = /^on[^a-z]/
 export const isOn = (key: string) => onRE.test(key)
+
+//NOTE:这个是什么？
+export const EMPTY_OBJ: { readonly [key: string]: any } = Object.freeze({})
