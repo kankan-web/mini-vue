@@ -149,7 +149,10 @@ function baseCreateRenderer(options: RendererOptions): any {
   }
   const render = (vnode, container) => {
     if (vnode === null) {
-      //TODO：卸载
+      //卸载
+      if (container._vnode) {
+        unmount(container._vnode)
+      }
     } else {
       patch(container._vnode || null, vnode, container)
     }
