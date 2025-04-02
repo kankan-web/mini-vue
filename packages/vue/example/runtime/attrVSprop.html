@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="app2"></div>
+    <script>
+      const divEle1 = document.querySelector('#app')
+      const divEle2 = document.querySelector('#app2')
+      console.time('className')
+      for (let i = 0; i < 10000; i++) {
+        divEle1.className = 'test'
+      }
+      console.timeEnd('className')
+      console.time('attr')
+      for (let i = 0; i < 10000; i++) {
+        divEle2.setAttribute('class', 'test-2')
+      }
+      console.timeEnd('attr')
+    </script>
+  </body>
+</html>
