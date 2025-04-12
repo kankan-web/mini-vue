@@ -19,6 +19,13 @@ export function isVNode(value: any): value is VNode {
 }
 
 export function createVNode(type, props, children): VNode {
+  //通过bit位处理shapeFlag类型
+  const shapeFlag = isString(type)
+    ? ShapeFlags.ELEMENT
+    : isObject(type)
+    ? ShapeFlags.STATEFUL_COMPONENT
+    : 0
+
   //进行props中class与style增强处理
   if (props) {
     let { class: klass, style } = props
@@ -26,12 +33,7 @@ export function createVNode(type, props, children): VNode {
       props.class = normalizeClass(klass)
     }
   }
-  //这里
-  const shapeFlag = isString(type)
-    ? ShapeFlags.ELEMENT
-    : isObject(type)
-    ? ShapeFlags.STATEFUL_COMPONENT
-    : 0
+
   return createBaseVNode(type, props, children, shapeFlag)
 }
 function createBaseVNode(type, props, children, shapeFlag) {

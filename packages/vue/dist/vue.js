@@ -357,6 +357,12 @@ var Vue = (function (exports) {
         return value && value.__v_isVNode === true;
     }
     function createVNode(type, props, children) {
+        //通过bit位处理shapeFlag类型
+        var shapeFlag = isString(type)
+            ? 1 /* ShapeFlags.ELEMENT */
+            : isObject(type)
+                ? 4 /* ShapeFlags.STATEFUL_COMPONENT */
+                : 0;
         //进行props中class与style增强处理
         if (props) {
             var klass = props.class; props.style;
@@ -364,12 +370,6 @@ var Vue = (function (exports) {
                 props.class = normalizeClass(klass);
             }
         }
-        //这里
-        var shapeFlag = isString(type)
-            ? 1 /* ShapeFlags.ELEMENT */
-            : isObject(type)
-                ? 4 /* ShapeFlags.STATEFUL_COMPONENT */
-                : 0;
         return createBaseVNode(type, props, children, shapeFlag);
     }
     function createBaseVNode(type, props, children, shapeFlag) {
@@ -414,7 +414,6 @@ var Vue = (function (exports) {
      * @param children
      * @returns
      * @example
-     *
      *
      */
     function h(type, propsOrChildren, children) {
@@ -568,18 +567,36 @@ var Vue = (function (exports) {
             if (parent) {
                 parent.removeChild(child);
             }
-        }
+        },
+        createText: function (text) { return doc.createTextNode(text); },
+        setText: function (node, text) {
+            node.nodeValue = text;
+        },
+        createComment: function (text) { return doc.createComment(text); }
     };
 
     function isSameVNodeType(n1, n2) {
         return n1.type === n2.type && n1.key === n2.key;
     }
 
+    function normalizeVNode(child) {
+        if (typeof child === 'object') {
+            return cloneIfMounted(child);
+        }
+        else {
+            return createVNode(Text, null, String(child));
+        }
+    }
+    function cloneIfMounted(child) {
+        return child;
+    }
+
     function createRenderer(options) {
         return baseCreateRenderer(options);
     }
     function baseCreateRenderer(options) {
-        var hostPatchProp = options.patchProp, hostSetElementText = options.setElementText, hostInsert = options.insert, hostCreateElement = options.createElement, hostRemove = options.remove;
+        var hostPatchProp = options.patchProp, hostSetElementText = options.setElementText, hostInsert = options.insert, hostCreateElement = options.createElement, hostRemove = options.remove, hostCreateText = options.createText, hostSetText = options.setText, hostCreateComment = options.createComment;
+        //普通元素
         var processElement = function (oldVNode, newVNode, container, anchor) {
             if (oldVNode == null) {
                 mountElement(newVNode, container, anchor); //挂载操作
@@ -587,6 +604,39 @@ var Vue = (function (exports) {
             else {
                 //更新操作
                 patchElement(oldVNode, newVNode);
+            }
+        };
+        //处理Text元素
+        var processText = function (oldVNode, newVNode, container, anchor) {
+            if (oldVNode == null) {
+                newVNode.el = hostCreateText(newVNode.children);
+                //MARK：为什么会需要这个anchor
+                hostInsert(newVNode.el, container, anchor);
+            }
+            else {
+                var el = (newVNode.el = oldVNode.el);
+                if (newVNode.children !== oldVNode.children) {
+                    hostSetText(el, newVNode.children);
+                }
+            }
+        };
+        //处理Comment元素
+        var processComment = function (oldVNode, newVNode, container, anchor) {
+            if (oldVNode === null) {
+                newVNode.el = hostCreateComment(newVNode.children);
+                hostInsert(newVNode.el, container, anchor);
+            }
+            else {
+                newVNode.el = oldVNode.el;
+            }
+        };
+        //处理Fragment元素
+        var processFragment = function (oldVNode, newVNode, container, anchor) {
+            if (oldVNode === null) {
+                mountChildren(newVNode.children, container, anchor);
+            }
+            else {
+                patchChildren(oldVNode, newVNode, container);
             }
         };
         //挂载操作：
@@ -597,6 +647,9 @@ var Vue = (function (exports) {
             if (shapeFlag && 8 /* ShapeFlags.TEXT_CHILDREN */) {
                 //2.设置文本
                 hostSetElementText(el, vnode.children);
+            }
+            else if (shapeFlag & 16 /* ShapeFlags.ARRAY_CHILDREN */) {
+                mountChildren(vnode.children, el, null);
             }
             //3.设置props
             if (props) {
@@ -615,7 +668,21 @@ var Vue = (function (exports) {
             patchChildren(oldVNode, newVNode, el);
             patchProps(el, newVNode, oldProps, newProps);
         };
-        var patchChildren = function (oldVNode, newVNode, container) {
+        var mountChildren = function (children, container, anchor) {
+            // 处理 Cannot assign to read only property '0' of string 'xxx'
+            if (isString(children)) {
+                // 如果是字符串，直接创建一个文本节点
+                // const textNode = document.createTextNode(children)
+                // container.appendChild(textNode)
+                // return
+                children = children.split('');
+            }
+            for (var i = 0; i < children.length; i++) {
+                var child = (children[i] = normalizeVNode(children[i]));
+                patch(null, child, container, anchor);
+            }
+        };
+        var patchChildren = function (oldVNode, newVNode, container, anchor) {
             var c1 = oldVNode && oldVNode.children;
             var prevShapeFlag = oldVNode ? oldVNode.shapeFlag : 0;
             var c2 = newVNode && newVNode.children;
@@ -672,10 +739,13 @@ var Vue = (function (exports) {
             var type = newVNode.type, shapeFlag = newVNode.shapeFlag;
             switch (type) {
                 case Text:
+                    processText(oldVNode, newVNode, container, anchor);
                     break;
                 case Comment:
+                    processComment(oldVNode, newVNode, container, anchor);
                     break;
                 case Fragment:
+                    processFragment(oldVNode, newVNode, container, anchor);
                     break;
                 default:
                     if (shapeFlag & 1 /* ShapeFlags.ELEMENT */) {
