@@ -453,14 +453,103 @@ var Vue = (function (exports) {
         }
     }
 
+    function patchDOMProp(el, key, value) {
+        try {
+            el[key] = value;
+        }
+        catch (e) { }
+    }
+
+    function patchAttr(el, key, value) {
+        if (value === null) {
+            el.removeAttribute(key);
+        }
+        else {
+            el.setAttribute(key, value);
+        }
+    }
+
+    function patchStyle(el, prev, next) {
+        var style = el.style;
+        var isCssString = isString(next);
+        if (next && !isCssString) {
+            for (var key in next) {
+                setStyle(style, key, next[key]);
+            }
+            if (prev && !isString(prev)) {
+                for (var key in prev) {
+                    if (next[key] == null) {
+                        setStyle(style, key, null);
+                    }
+                }
+            }
+        }
+    }
+    function setStyle(style, name, value) {
+        style[name] = value;
+    }
+
+    function patchEvent(el, rawName, prevValue, nextValue) {
+        var invokers = el._vei || (el._vei = {});
+        var existingInvoker = invokers[rawName]; //查看当前事件是否已经被绑定过
+        // 如果存在，则更新
+        if (nextValue && existingInvoker) {
+            existingInvoker.value = nextValue;
+        }
+        else {
+            var name_1 = parseName(rawName);
+            //如果不存在，则创建
+            if (nextValue) {
+                var invoker = (invokers[rawName] = createInvoker(nextValue));
+                el.addEventListener(name_1, invoker);
+                // 如果存在，则移除
+            }
+            else if (existingInvoker) {
+                el.removeEventListener(name_1, existingInvoker);
+                invokers[rawName] = undefined;
+            }
+        }
+    }
+    function parseName(name) {
+        return name.slice(2).toLowerCase();
+    }
+    function createInvoker(initialValue) {
+        var invoker = function (e) {
+            invoker.value && invoker.value();
+        };
+        invoker.value = initialValue;
+        return invoker;
+    }
+
     var patchProp = function (el, key, prevValue, nextValue) {
         if (key === 'class') {
             patchClass(el, nextValue);
         }
-        else if (key === 'style') ;
-        else if (isOn(key)) ;
-        else ;
+        else if (key === 'style') {
+            patchStyle(el, prevValue, nextValue);
+        }
+        else if (isOn(key)) {
+            patchEvent(el, key, prevValue, nextValue);
+        }
+        else if (shouldSetAsProp(el, key)) {
+            patchDOMProp(el, key, nextValue);
+        }
+        else {
+            patchAttr(el, key, nextValue);
+        }
     };
+    function shouldSetAsProp(el, key) {
+        if (key === 'form') {
+            return false;
+        }
+        if (key === 'list' && el.tagName === 'INPUT') {
+            return false;
+        }
+        if (key === 'type' && el.tagName === 'TEXTAREA') {
+            return false;
+        }
+        return key in el;
+    }
 
     var doc = document;
     var nodeOps = {
@@ -598,7 +687,12 @@ var Vue = (function (exports) {
             hostRemove(vnode.el);
         };
         var render = function (vnode, container) {
-            if (vnode === null) ;
+            if (vnode === null) {
+                //卸载
+                if (container._vnode) {
+                    unmount(container._vnode);
+                }
+            }
             else {
                 patch(container._vnode || null, vnode, container);
             }

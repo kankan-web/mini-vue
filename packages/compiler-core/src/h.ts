@@ -9,7 +9,6 @@ import { VNode, createVNode, isVNode } from './vnode'
  * @returns
  * @example
  *
- *
  */
 export function h(type: any, propsOrChildren?: any, children?: any): VNode {
   const l = arguments.length
